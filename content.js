@@ -1,26 +1,31 @@
-// ===== HH АВТО-ОТКЛИК - ФИНАЛЬНАЯ ВЕРСИЯ =====
+// ===== HH АВТО-ОТКЛИК - ФИНАЛЬНАЯ УНИВЕРСАЛЬНАЯ ВЕРСИЯ С АВТО-ФИЛЬТРОМ =====
 (function() {
     'use strict';
     
-    console.log('=== HH Авто-отклик v1.0 ===');
+    console.log('=== HH Авто-отклик v1.1 ===');
     
-    // Проверяем, что мы на HH.ru
     if (!window.location.href.includes('hh.ru')) {
         console.log('⚠️ Не страница HH.ru, скрипт не активирован');
         return;
     }
     
-    // Основной класс для управления авто-откликом
     class HHAutoResponder {
         constructor() {
-            this.coverLetter = `Добрый день!\n\nЗаинтересовала ваша вакансия. Мой опыт соответствует требованиям. Готов(а) к собеседованию.\n\nС уважением,\n[Ваше Имя]`;
+            this.coverLetter = `Добрый день!Заинтересовала ваша вакансия.Мой опыт соответствует требованиям.Готов(а) к собеседованию.С уважением,[Ваше Имя]`;
             this.isRunning = false;
             this.processedVacancies = new Set();
             this.stats = { success: 0, failed: 0, skipped: 0, total: 0 };
-            this.settings = { autoNextPage: true, skipResponded: true, delay: 1 };
-            this.theme = 'dark'; // Темная тема по умолчанию
+            this.settings = { 
+                autoNextPage: true, 
+                skipResponded: true, 
+                delay: 0.5, // Уменьшено с 1 до 0.5 секунд
+                filterOrganizations: true,
+                autoRememberOrganizations: true
+            };
+            this.filteredOrganizations = [];
+            this.autoFilteredOrganizations = [];
+            this.theme = 'dark';
             
-            // Сохраняем инстанс в глобальной области
             window.hhAutoResponder = this;
             
             this.init();
@@ -46,6 +51,8 @@
                     if (parsed.settings) this.settings = { ...this.settings, ...parsed.settings };
                     if (parsed.stats) this.stats = { ...this.stats, ...parsed.stats };
                     if (parsed.theme) this.theme = parsed.theme;
+                    if (parsed.filteredOrganizations) this.filteredOrganizations = parsed.filteredOrganizations;
+                    if (parsed.autoFilteredOrganizations) this.autoFilteredOrganizations = parsed.autoFilteredOrganizations;
                 }
             } catch (e) {
                 console.log('Используем настройки по умолчанию');
@@ -58,7 +65,9 @@
                     coverLetter: this.coverLetter,
                     settings: this.settings,
                     stats: this.stats,
-                    theme: this.theme
+                    theme: this.theme,
+                    filteredOrganizations: this.filteredOrganizations,
+                    autoFilteredOrganizations: this.autoFilteredOrganizations
                 }));
             } catch (e) {
                 console.log('Не удалось сохранить настройки');
@@ -68,8 +77,6 @@
         wait(ms) {
             return new Promise(resolve => setTimeout(resolve, ms));
         }
-        
-        // ===== ИНТЕРФЕЙС =====
         
         createInterface() {
             this.removeOldInterface();
@@ -91,7 +98,6 @@
             this.panel = document.createElement('div');
             this.panel.id = 'hh-auto-panel';
             
-            // Применяем стили в зависимости от темы
             const isDark = this.theme === 'dark';
             const bgColor = isDark ? '#1e1e1e' : 'white';
             const textColor = isDark ? '#ffffff' : '#333333';
@@ -112,7 +118,7 @@
                 border: `2px solid ${borderColor}`,
                 borderRadius: '10px',
                 padding: '15px',
-                width: '300px',
+                width: '340px',
                 boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
                 fontFamily: 'Arial, sans-serif',
                 maxHeight: '80vh',
@@ -120,36 +126,21 @@
                 transition: 'all 0.3s'
             });
             
-            this.createPanelContent(isDark, bgColor, textColor, borderColor, statusBg, statusColor, secondaryText, inputBg, inputBorder);
-            document.body.appendChild(this.panel);
-        }
-        
-        createPanelContent(isDark, bgColor, textColor, borderColor, statusBg, statusColor, secondaryText, inputBg, inputBorder) {
-            const sliderPosition = isDark ? 'translateX(22px)' : 'translateX(2px)';
-            const moonColor = isDark ? '#4CAF50' : secondaryText;
-            const sunColor = isDark ? secondaryText : '#FF9800';
-            
             this.panel.innerHTML = `
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                     <div style="display: flex; align-items: center; gap: 8px;">
-                        <span style="color: #2196F3; font-size: 20px;"></span>
                         <h3 style="margin: 0; color: #2196F3; font-size: 16px;">HH Авто-отклик</h3>
                     </div>
                     <div style="display: flex; align-items: center; gap: 10px;">
                         <div style="display: flex; align-items: center; gap: 6px;">
-                            <span id="hh-moon-icon" style="font-size: 14px; color: ${moonColor}; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);">🌙</span>
-                            <div id="hh-theme-slider" style="position: relative; width: 44px; height: 20px; cursor: pointer; border-radius: 12px; background: ${isDark ? 'linear-gradient(90deg, #2d2d2d 0%, #3d3d3d 100%)' : 'linear-gradient(90deg, #e0e0e0 0%, #cccccc 100%)'}; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); overflow: hidden; box-shadow: inset 0 1px 3px rgba(0,0,0,0.2);">
-                                <div id="hh-theme-slider-track" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 6px;">
-                                    <div style="width: 8px; height: 8px; border-radius: 50%; background: ${isDark ? '#4CAF50' : '#888'}; opacity: ${isDark ? '1' : '0.3'}; transition: all 0.3s;"></div>
-                                    <div style="width: 8px; height: 8px; border-radius: 50%; background: ${isDark ? '#888' : '#FF9800'}; opacity: ${isDark ? '0.3' : '1'}; transition: all 0.3s;"></div>
-                                </div>
-                                <div id="hh-theme-slider-handle" style="position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; background: ${isDark ? 'radial-gradient(circle at 30% 30%, #66BB6A, #4CAF50)' : 'radial-gradient(circle at 30% 30%, #FFD54F, #FF9800)'}; border-radius: 50%; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); transform: ${sliderPosition}; box-shadow: 0 2px 6px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.1) inset; animation: glow 2s infinite alternate;">
-                                    <div style="position: absolute; top: 4px; left: 4px; width: 4px; height: 4px; background: rgba(255,255,255,0.8); border-radius: 50%;"></div>
+                            <span id="hh-moon-icon" style="font-size: 14px; color: ${isDark ? '#4CAF50' : '#666'}; transition: all 0.3s;">☀️</span>
+                            <div id="hh-theme-slider" style="position: relative; width: 44px; height: 20px; cursor: pointer; border-radius: 12px; background: ${isDark ? '#2d2d2d' : '#e0e0e0'}; transition: all 0.3s; overflow: hidden; box-shadow: inset 0 1px 3px rgba(0,0,0,0.2);">
+                                <div id="hh-theme-slider-handle" style="position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; background: ${isDark ? '#4CAF50' : '#FF9800'}; border-radius: 50%; transition: all 0.3s; transform: ${isDark ? 'translateX(22px)' : 'translateX(2px)'}; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
                                 </div>
                             </div>
-                            <span id="hh-sun-icon" style="font-size: 14px; color: ${sunColor}; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);">☀️</span>
+                            <span id="hh-sun-icon" style="font-size: 14px; color: ${isDark ? '#aaa' : '#FF9800'}; transition: all 0.3s;">🌙</span>
                         </div>
-                        <button id="hh-close-btn" style="background: none; border: none; font-size: 20px; cursor: pointer; color: ${secondaryText}; padding: 2px; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; transition: all 0.3s;" title="Скрыть панель">
+                        <button id="hh-close-btn" style="background: none; border: none; font-size: 20px; cursor: pointer; color: ${secondaryText}; padding: 2px; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;" title="Скрыть панель">
                             ×
                         </button>
                     </div>
@@ -187,87 +178,91 @@
                         <input type="checkbox" id="hh-skip-responded" ${this.settings.skipResponded ? 'checked' : ''} style="margin-right: 8px; cursor: pointer;">
                         Пропускать уже откликнутые
                     </label>
+                    <label style="display: flex; align-items: center; font-size: 13px; margin-bottom: 5px; color: ${textColor}; cursor: pointer;">
+                        <input type="checkbox" id="hh-filter-organizations" ${this.settings.filterOrganizations ? 'checked' : ''} style="margin-right: 8px; cursor: pointer;">
+                        Фильтровать организации
+                    </label>
+                    <label style="display: flex; align-items: center; font-size: 13px; margin-bottom: 5px; color: ${textColor}; cursor: pointer;">
+                        <input type="checkbox" id="hh-auto-remember" ${this.settings.autoRememberOrganizations ? 'checked' : ''} style="margin-right: 8px; cursor: pointer;">
+                        <strong>Автодобавление в фильтр</strong>
+                    </label>
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px; color: ${textColor};">
                         <span style="font-size: 13px;">Задержка (сек):</span>
-                        <input type="number" id="hh-delay" min="0.5" max="10" step="0.5" value="${this.settings.delay}" style="width: 50px; padding: 4px; border: 1px solid ${inputBorder}; border-radius: 4px; background: ${inputBg}; color: ${textColor}; text-align: center;">
+                        <input type="number" id="hh-delay" min="0.3" max="5" step="0.1" value="${this.settings.delay}" style="width: 50px; padding: 4px; border: 1px solid ${inputBorder}; border-radius: 4px; background: ${inputBg}; color: ${textColor}; text-align: center;">
+                    </div>
+                </div>
+                
+                <div style="margin-bottom: 10px;">
+                    <div style="font-weight: bold; font-size: 13px; margin-bottom: 5px; color: ${textColor};">🚫 Фильтр организаций (ручной):</div>
+                    <textarea id="hh-filter-text" placeholder="Введите названия организаций через запятую\nПример: Яндекс, Google, YouTube" style="width: 100%; height: 80px; padding: 8px; border: 1px solid ${inputBorder}; border-radius: 4px; font-size: 13px; resize: vertical; background: ${inputBg}; color: ${textColor};">${this.filteredOrganizations.length > 0 ? this.filteredOrganizations.join(', ') : ''}</textarea>
+                    <div style="font-size: 11px; color: ${secondaryText}; margin-top: 3px;">
+                        * Не откликаться на эти организации
                     </div>
                 </div>
                 
                 <div style="display: flex; flex-direction: column; gap: 8px; margin: 15px 0 10px 0;">
-                    <button id="hh-start" style="padding: 12px; background: linear-gradient(135deg, #4CAF50, #45a049); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px; transition: all 0.3s;">
+                    <button id="hh-start" style="padding: 12px; background: linear-gradient(135deg, #4CAF50, #45a049); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px;">
                         <span style="display: flex; align-items: center; justify-content: center; gap: 8px;">
                             <span>▶️</span>
-                            НАЧАТЬ АВТО-ОТКЛИК
+                            <span>НАЧАТЬ АВТО-ОТКЛИК</span>
                         </span>
                     </button>
-                    <button id="hh-test" style="padding: 10px; background: linear-gradient(135deg, #FF9800, #f57c00); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; transition: all 0.3s;">
+                    <button id="hh-test" style="padding: 10px; background: linear-gradient(135deg, #FF9800, #f57c00); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;">
                         <span style="display: flex; align-items: center; justify-content: center; gap: 8px;">
                             <span>🧪</span>
-                            Тест на 1 вакансию
+                            <span>Тест на 1 вакансию</span>
                         </span>
                     </button>
-                    <button id="hh-stop" style="padding: 12px; background: linear-gradient(135deg, #f44336, #d32f2f); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px; display: none; transition: all 0.3s;">
+                    <button id="hh-stop" style="padding: 12px; background: linear-gradient(135deg, #f44336, #d32f2f); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px; display: none;">
                         <span style="display: flex; align-items: center; justify-content: center; gap: 8px;">
                             <span>⏹️</span>
-                            ОСТАНОВИТЬ
+                            <span>ОСТАНОВИТЬ</span>
                         </span>
                     </button>
                 </div>
                 
                 <div style="display: flex; gap: 8px; margin-bottom: 10px;">
-                    <button id="hh-analyze" style="flex: 1; padding: 8px; background: linear-gradient(135deg, #2196F3, #1976D2); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; transition: all 0.3s;">
+                    <button id="hh-analyze" style="flex: 1; padding: 8px; background: linear-gradient(135deg, #2196F3, #1976D2); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px;">
                         <span style="display: flex; align-items: center; justify-content: center; gap: 6px;">
                             <span>📊</span>
-                            Анализ
+                            <span>Анализ</span>
                         </span>
                     </button>
-                    <button id="hh-clear" style="flex: 1; padding: 8px; background: linear-gradient(135deg, #607D8B, #455a64); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; transition: all 0.3s;">
+                    <button id="hh-test-filter" style="flex: 1; padding: 8px; background: linear-gradient(135deg, #9C27B0, #7B1FA2); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px;">
+                        <span style="display: flex; align-items: center; justify-content: center; gap: 6px;">
+                            <span>🔍</span>
+                            <span>Тест фильтра</span>
+                        </span>
+                    </button>
+                    <button id="hh-show-auto-filter" style="flex: 1; padding: 8px; background: linear-gradient(135deg, #00BCD4, #0097A7); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px;">
+                        <span style="display: flex; align-items: center; justify-content: center; gap: 6px;">
+                            <span>🤖</span>
+                            <span>Автофильтр</span>
+                        </span>
+                    </button>
+                </div>
+                
+                <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+                    <button id="hh-clear" style="flex: 1; padding: 8px; background: linear-gradient(135deg, #607D8B, #455a64); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px;">
                         <span style="display: flex; align-items: center; justify-content: center; gap: 6px;">
                             <span>🗑️</span>
-                            Очистить
+                            <span>Очистить</span>
+                        </span>
+                    </button>
+                    <button id="hh-clear-auto-filter" style="flex: 1; padding: 8px; background: linear-gradient(135deg, #f44336, #d32f2f); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px;">
+                        <span style="display: flex; align-items: center; justify-content: center; gap: 6px;">
+                            <span>🧹</span>
+                            <span>Очистить автофильтр</span>
                         </span>
                     </button>
                 </div>
                 
                 <div style="margin-top: 15px; font-size: 11px; color: ${secondaryText}; text-align: center; border-top: 1px solid ${inputBorder}; padding-top: 10px;">
-                    by alex
+                    By ALEX
                 </div>
             `;
             
-            // Добавляем CSS анимацию для ползунка
-            this.addSliderAnimation();
-        }
-        
-        addSliderAnimation() {
-            const style = document.createElement('style');
-            style.textContent = `
-                @keyframes glow {
-                    0% { box-shadow: 0 2px 6px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.1) inset, 0 0 5px rgba(76, 175, 80, 0.3); }
-                    100% { box-shadow: 0 2px 6px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.1) inset, 0 0 10px rgba(76, 175, 80, 0.6); }
-                }
-                
-                @keyframes bounce {
-                    0%, 100% { transform: scale(1); }
-                    50% { transform: scale(1.1); }
-                }
-                
-                @keyframes pulse {
-                    0% { opacity: 0.3; }
-                    50% { opacity: 1; }
-                    100% { opacity: 0.3; }
-                }
-                
-                @keyframes slide-in {
-                    0% { transform: translateX(0) scale(0.8); opacity: 0; }
-                    100% { transform: translateX(22px) scale(1); opacity: 1; }
-                }
-                
-                @keyframes slide-out {
-                    0% { transform: translateX(22px) scale(0.8); opacity: 0; }
-                    100% { transform: translateX(2px) scale(1); opacity: 1; }
-                }
-            `;
-            document.head.appendChild(style);
+            document.body.appendChild(this.panel);
         }
         
         createToggleButton() {
@@ -275,7 +270,6 @@
             this.toggleButton.id = 'hh-toggle-btn';
             this.toggleButton.innerHTML = '🚀';
             
-            // Применяем стиль в зависимости от темы
             const isDark = this.theme === 'dark';
             const btnBg = isDark ? 'linear-gradient(135deg, #333, #555)' : 'linear-gradient(135deg, #2196F3, #1976D2)';
             
@@ -293,7 +287,6 @@
                 fontSize: '24px',
                 cursor: 'pointer',
                 boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
-                transition: 'all 0.3s',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center'
@@ -303,30 +296,40 @@
         }
         
         setupEventListeners() {
-            // Переключение панели
             this.toggleButton.addEventListener('click', () => {
                 this.panel.style.display = this.panel.style.display === 'none' ? 'block' : 'none';
             });
             
-            // Закрытие панели
             document.getElementById('hh-close-btn').addEventListener('click', () => {
                 this.panel.style.display = 'none';
             });
             
-            // Переключение темы через слайдер с анимацией
+            // Исправленный переключатель темы
             const themeSlider = document.getElementById('hh-theme-slider');
             if (themeSlider) {
-                themeSlider.addEventListener('click', () => this.toggleThemeWithAnimation());
+                themeSlider.addEventListener('click', () => {
+                    this.toggleTheme();
+                    this.applyThemeWithoutReload();
+                });
             }
             
-            // Основные кнопки
             document.getElementById('hh-start').addEventListener('click', () => this.startAutoProcess());
             document.getElementById('hh-test').addEventListener('click', () => this.testProcess());
             document.getElementById('hh-stop').addEventListener('click', () => this.stopAutoProcess());
             document.getElementById('hh-analyze').addEventListener('click', () => this.analyzePage());
+            document.getElementById('hh-test-filter').addEventListener('click', () => this.testFilter());
+            document.getElementById('hh-show-auto-filter').addEventListener('click', () => this.showAutoFilter());
             document.getElementById('hh-clear').addEventListener('click', () => this.clearHistory());
+            document.getElementById('hh-clear-auto-filter').addEventListener('click', () => this.clearAutoFilter());
             
-            // Настройки
+            document.getElementById('hh-auto-remember').addEventListener('change', (e) => {
+                this.settings.autoRememberOrganizations = e.target.checked;
+                this.saveSettings();
+                this.updateStatus(e.target.checked ? 
+                    '✅ АВТОфильтр ВКЛЮЧЕН - организации будут добавляться автоматически' : 
+                    '⭕ АВТОфильтр выключен');
+            });
+            
             document.getElementById('hh-letter').addEventListener('input', (e) => {
                 this.coverLetter = e.target.value;
                 document.getElementById('hh-char-count').textContent = `${e.target.value.length}/2000`;
@@ -343,85 +346,52 @@
                 this.saveSettings();
             });
             
-            document.getElementById('hh-delay').addEventListener('change', (e) => {
-                this.settings.delay = parseFloat(e.target.value) || 1;
+            document.getElementById('hh-filter-organizations').addEventListener('change', (e) => {
+                this.settings.filterOrganizations = e.target.checked;
                 this.saveSettings();
             });
             
-            // Ховер эффекты
-            this.addHoverEffects();
+            document.getElementById('hh-delay').addEventListener('change', (e) => {
+                this.settings.delay = parseFloat(e.target.value) || 0.5;
+                this.saveSettings();
+            });
             
-            // Обновление счетчиков
+            document.getElementById('hh-filter-text').addEventListener('input', (e) => {
+                const text = e.target.value;
+                this.filteredOrganizations = text.split(',')
+                    .map(org => org.trim())
+                    .filter(org => org.length > 0);
+                this.saveSettings();
+            });
+            
             setInterval(() => this.updateCount(), 5000);
         }
         
-        toggleThemeWithAnimation() {
+        toggleTheme() {
+            this.theme = this.theme === 'dark' ? 'light' : 'dark';
+            this.saveSettings();
+            this.updateStatus(`✅ Тема изменена на ${this.theme === 'dark' ? 'тёмную' : 'светлую'}`);
+        }
+        
+        applyThemeWithoutReload() {
+            const isDark = this.theme === 'dark';
+            
+            // Обновляем ползунок темы
             const handle = document.getElementById('hh-theme-slider-handle');
             const moonIcon = document.getElementById('hh-moon-icon');
             const sunIcon = document.getElementById('hh-sun-icon');
             const slider = document.getElementById('hh-theme-slider');
-            const trackDots = slider.querySelectorAll('#hh-theme-slider-track > div');
             
-            // Анимация переключения
-            if (this.theme === 'dark') {
-                // Темная → Светлая
-                handle.style.animation = 'slide-out 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards';
-                moonIcon.style.color = '#666';
-                sunIcon.style.color = '#FF9800';
-                moonIcon.style.transform = 'scale(0.9)';
-                sunIcon.style.transform = 'scale(1.1)';
-                
-                // Анимация точек на треке
-                if (trackDots[0]) trackDots[0].style.opacity = '0.3';
-                if (trackDots[1]) trackDots[1].style.opacity = '1';
-                
-                // Изменение цвета ползунка с анимацией
-                handle.style.background = 'radial-gradient(circle at 30% 30%, #FFD54F, #FF9800)';
-                slider.style.background = 'linear-gradient(90deg, #e0e0e0 0%, #cccccc 100%)';
-                
-                setTimeout(() => {
-                    this.theme = 'light';
-                    this.saveSettings();
-                    this.updateStatus('✅ Тема изменена на светлую');
-                }, 200);
-                
-            } else {
-                // Светлая → Темная
-                handle.style.animation = 'slide-in 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards';
-                moonIcon.style.color = '#4CAF50';
-                sunIcon.style.color = '#aaa';
-                moonIcon.style.transform = 'scale(1.1)';
-                sunIcon.style.transform = 'scale(0.9)';
-                
-                // Анимация точек на треке
-                if (trackDots[0]) trackDots[0].style.opacity = '1';
-                if (trackDots[1]) trackDots[1].style.opacity = '0.3';
-                
-                // Изменение цвета ползунка с анимацией
-                handle.style.background = 'radial-gradient(circle at 30% 30%, #66BB6A, #4CAF50)';
-                slider.style.background = 'linear-gradient(90deg, #2d2d2d 0%, #3d3d3d 100%)';
-                
-                setTimeout(() => {
-                    this.theme = 'dark';
-                    this.saveSettings();
-                    this.updateStatus('✅ Тема изменена на темную');
-                }, 200);
+            if (handle) {
+                handle.style.transform = isDark ? 'translateX(22px)' : 'translateX(2px)';
+                handle.style.background = isDark ? '#4CAF50' : '#FF9800';
             }
             
-            // Обновляем остальной интерфейс после анимации
-            setTimeout(() => {
-                this.updateInterfaceAfterThemeChange();
-            }, 400);
-        }
-        
-        updateInterfaceAfterThemeChange() {
-            const isDark = this.theme === 'dark';
+            if (moonIcon) moonIcon.style.color = isDark ? '#4CAF50' : '#666';
+            if (sunIcon) sunIcon.style.color = isDark ? '#aaa' : '#FF9800';
+            if (slider) slider.style.background = isDark ? '#2d2d2d' : '#e0e0e0';
             
-            // Обновляем кнопку переключения
-            const btnBg = isDark ? 'linear-gradient(135deg, #333, #555)' : 'linear-gradient(135deg, #2196F3, #1976D2)';
-            this.toggleButton.style.background = btnBg;
-            
-            // Обновляем панель
+            // Обновляем цвета панели
             const bgColor = isDark ? '#1e1e1e' : 'white';
             const textColor = isDark ? '#ffffff' : '#333333';
             const borderColor = isDark ? '#444444' : '#4CAF50';
@@ -431,7 +401,7 @@
             const inputBg = isDark ? '#2d2d2d' : 'white';
             const inputBorder = isDark ? '#555555' : '#dddddd';
             
-            // Плавное изменение цветов панели
+            // Обновляем панель
             this.panel.style.background = bgColor;
             this.panel.style.color = textColor;
             this.panel.style.borderColor = borderColor;
@@ -454,7 +424,7 @@
             // Обновляем инпуты
             const textarea = document.getElementById('hh-letter');
             const delayInput = document.getElementById('hh-delay');
-            const checkboxes = document.querySelectorAll('#hh-auto-next, #hh-skip-responded');
+            const filterTextarea = document.getElementById('hh-filter-text');
             
             if (textarea) {
                 textarea.style.background = inputBg;
@@ -468,122 +438,308 @@
                 delayInput.style.borderColor = inputBorder;
             }
             
-            // Обновляем текст
-            const textElements = this.panel.querySelectorAll('div, span, label');
-            textElements.forEach(el => {
-                if (!el.id || !el.id.startsWith('hh-')) {
+            if (filterTextarea) {
+                filterTextarea.style.background = inputBg;
+                filterTextarea.style.color = textColor;
+                filterTextarea.style.borderColor = inputBorder;
+            }
+            
+            // Обновляем счетчики и текст
+            const countEl = document.getElementById('hh-count');
+            if (countEl) countEl.style.color = textColor;
+            
+            // Обновляем все текстовые элементы
+            const labels = this.panel.querySelectorAll('label, div, span:not(#hh-char-count)');
+            labels.forEach(el => {
+                // Пропускаем кнопки и их элементы
+                if (el.closest('button') || el.id?.startsWith('hh-')) {
+                    return;
+                }
+                if (el.style.color && !el.style.color.includes('white') && !el.style.color.includes('#2196F3')) {
                     el.style.color = textColor;
                 }
             });
             
             // Обновляем вторичный текст
-            const secondaryElements = this.panel.querySelectorAll('.secondary-text');
+            const secondaryElements = this.panel.querySelectorAll('span[style*="color: #"], span[style*="color:#"]');
             secondaryElements.forEach(el => {
-                el.style.color = secondaryText;
-            });
-        }
-        
-        toggleTheme() {
-            this.theme = this.theme === 'light' ? 'dark' : 'light';
-            this.saveSettings();
-            
-            // Обновляем интерфейс с новой темой
-            this.createInterface();
-            this.setupEventListeners();
-            
-            this.updateStatus(`✅ Тема изменена на ${this.theme === 'dark' ? 'темную' : 'светлую'}`);
-        }
-        
-        addHoverEffects() {
-            const buttons = [
-                { id: 'hh-start', normal: 'linear-gradient(135deg, #4CAF50, #45a049)', hover: 'linear-gradient(135deg, #45a049, #388E3C)' },
-                { id: 'hh-test', normal: 'linear-gradient(135deg, #FF9800, #f57c00)', hover: 'linear-gradient(135deg, #f57c00, #EF6C00)' },
-                { id: 'hh-stop', normal: 'linear-gradient(135deg, #f44336, #d32f2f)', hover: 'linear-gradient(135deg, #d32f2f, #C62828)' },
-                { id: 'hh-analyze', normal: 'linear-gradient(135deg, #2196F3, #1976D2)', hover: 'linear-gradient(135deg, #1976D2, #1565C0)' },
-                { id: 'hh-clear', normal: 'linear-gradient(135deg, #607D8B, #455a64)', hover: 'linear-gradient(135deg, #455a64, #37474F)' }
-            ];
-            
-            buttons.forEach(btn => {
-                const element = document.getElementById(btn.id);
-                if (element) {
-                    element.addEventListener('mouseenter', () => {
-                        element.style.background = btn.hover;
-                        element.style.transform = 'translateY(-2px)';
-                        element.style.boxShadow = '0 6px 16px rgba(0,0,0,0.2)';
-                    });
-                    
-                    element.addEventListener('mouseleave', () => {
-                        element.style.background = btn.normal;
-                        element.style.transform = 'translateY(0)';
-                        element.style.boxShadow = 'none';
-                    });
+                if (el.style.color.includes('#666') || el.style.color.includes('#aaa')) {
+                    el.style.color = secondaryText;
                 }
             });
             
-            // Ховер для кнопки переключения
-            this.toggleButton.addEventListener('mouseenter', () => {
-                const isDark = this.theme === 'dark';
-                this.toggleButton.style.background = isDark 
-                    ? 'linear-gradient(135deg, #444, #666)' 
-                    : 'linear-gradient(135deg, #1976D2, #1565C0)';
-                this.toggleButton.style.transform = 'scale(1.1)';
-                this.toggleButton.style.boxShadow = '0 6px 16px rgba(0,0,0,0.3)';
-            });
+            // Обновляем кнопку переключения
+            const btnBg = isDark ? 'linear-gradient(135deg, #333, #555)' : 'linear-gradient(135deg, #2196F3, #1976D2)';
+            this.toggleButton.style.background = btnBg;
+        }
+        
+        // ===== АВТО-ФИЛЬТР ОРГАНИЗАЦИЙ =====
+        
+        getOrganizationName(button) {
+            const vacancyItem = button.closest('.vacancy-serp-item') || 
+                               button.closest('.serp-item') ||
+                               button.closest('[data-qa="vacancy-serp__vacancy"]');
             
-            this.toggleButton.addEventListener('mouseleave', () => {
-                const isDark = this.theme === 'dark';
-                this.toggleButton.style.background = isDark 
-                    ? 'linear-gradient(135deg, #333, #555)' 
-                    : 'linear-gradient(135deg, #2196F3, #1976D2)';
-                this.toggleButton.style.transform = 'scale(1)';
-                this.toggleButton.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)';
-            });
-            
-            // Ховер для слайдера темы с анимацией
-            const themeSlider = document.getElementById('hh-theme-slider');
-            const closeBtn = document.getElementById('hh-close-btn');
-            
-            if (themeSlider) {
-                themeSlider.addEventListener('mouseenter', () => {
-                    const isDark = this.theme === 'dark';
-                    themeSlider.style.transform = 'scale(1.05)';
-                    themeSlider.style.boxShadow = 'inset 0 1px 3px rgba(0,0,0,0.3), 0 0 8px rgba(255,255,255,0.1)';
-                    
-                    // Усиливаем анимацию свечения
-                    const handle = document.getElementById('hh-theme-slider-handle');
-                    if (handle) {
-                        handle.style.animation = 'glow 1s infinite alternate, bounce 2s infinite';
-                        handle.style.transform += ' scale(1.05)';
-                    }
-                });
-                
-                themeSlider.addEventListener('mouseleave', () => {
-                    const isDark = this.theme === 'dark';
-                    themeSlider.style.transform = 'scale(1)';
-                    themeSlider.style.boxShadow = 'inset 0 1px 3px rgba(0,0,0,0.2)';
-                    
-                    // Возвращаем обычную анимацию
-                    const handle = document.getElementById('hh-theme-slider-handle');
-                    if (handle) {
-                        handle.style.animation = 'glow 2s infinite alternate';
-                        handle.style.transform = handle.style.transform.replace(' scale(1.05)', '');
-                    }
-                });
+            if (!vacancyItem) {
+                return null;
             }
             
-            if (closeBtn) {
-                closeBtn.addEventListener('mouseenter', () => {
-                    closeBtn.style.background = this.theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
-                    closeBtn.style.transform = 'scale(1.1)';
-                    closeBtn.style.animation = 'pulse 1s infinite';
-                });
-                
-                closeBtn.addEventListener('mouseleave', () => {
-                    closeBtn.style.background = 'none';
-                    closeBtn.style.transform = 'scale(1)';
-                    closeBtn.style.animation = 'none';
-                });
+            let orgElement = vacancyItem.querySelector('[data-qa="vacancy-serp__vacancy-employer-text"]');
+            
+            if (orgElement) {
+                const text = orgElement.textContent || orgElement.innerText || '';
+                const trimmedText = text.trim();
+                if (trimmedText) {
+                    return trimmedText;
+                }
             }
+            
+            const magritteTextElements = vacancyItem.querySelectorAll('.magritte-text');
+            for (const element of magritteTextElements) {
+                const text = element.textContent || element.innerText || '';
+                const trimmedText = text.trim();
+                if (trimmedText && !trimmedText.includes('$') && !trimmedText.includes('₽') && 
+                    trimmedText.length > 1 && trimmedText.length < 100 && 
+                    !trimmedText.includes('отклик') && !trimmedText.includes('просмотр')) {
+                    return trimmedText;
+                }
+            }
+            
+            const links = vacancyItem.querySelectorAll('a');
+            for (const link of links) {
+                const text = link.textContent || link.innerText || '';
+                const trimmedText = text.trim();
+                if (trimmedText && trimmedText.length > 1 && trimmedText.length < 80 && 
+                    !trimmedText.includes('отклик') && !trimmedText.includes('просмотр')) {
+                    return trimmedText;
+                }
+            }
+            
+            return null;
+        }
+        
+        isFilteredOrganization(button) {
+            if (!this.settings.filterOrganizations) {
+                return false;
+            }
+            
+            const organizationName = this.getOrganizationName(button);
+            if (!organizationName) {
+                return false;
+            }
+            
+            const orgNameLower = organizationName.toLowerCase().trim();
+            
+            for (const filter of this.filteredOrganizations) {
+                if (!filter || !filter.trim()) continue;
+                
+                const filterLower = filter.toLowerCase().trim();
+                
+                if (orgNameLower.includes(filterLower) || filterLower.includes(orgNameLower)) {
+                    return true;
+                }
+            }
+            
+            if (this.settings.autoRememberOrganizations) {
+                for (const autoFilter of this.autoFilteredOrganizations) {
+                    if (!autoFilter || !autoFilter.trim()) continue;
+                    
+                    const autoFilterLower = autoFilter.toLowerCase().trim();
+                    
+                    if (orgNameLower.includes(autoFilterLower) || autoFilterLower.includes(orgNameLower)) {
+                        return true;
+                    }
+                }
+            }
+            
+            return false;
+        }
+        
+        addToAutoFilter(organizationName) {
+            if (!organizationName) return false;
+            
+            const orgNameTrimmed = organizationName.trim();
+            if (!orgNameTrimmed) return false;
+            
+            const orgNameLower = orgNameTrimmed.toLowerCase();
+            const alreadyExists = this.autoFilteredOrganizations.some(org => 
+                org.toLowerCase() === orgNameLower
+            );
+            
+            if (alreadyExists) {
+                return false;
+            }
+            
+            this.autoFilteredOrganizations.push(orgNameTrimmed);
+            this.saveSettings();
+            
+            return true;
+        }
+        
+        showAutoFilter() {
+            if (this.autoFilteredOrganizations.length === 0) {
+                this.updateStatus('Автофильтр пуст. Организации будут добавляться автоматически при отправке откликов.');
+                return;
+            }
+            
+            let message = `АВТОФИЛЬТР (всего: ${this.autoFilteredOrganizations.length}):\n\n`;
+            
+            this.autoFilteredOrganizations.forEach((org, index) => {
+                message += `${index + 1}. ${org}\n`;
+            });
+            
+            message += `\n⚠️ Эти организации будут автоматически пропускаться в будущем.`;
+            message += `\n\nИспользуйте кнопку "Очистить авто" для очистки.`;
+            
+            this.updateStatus(message);
+        }
+        
+        clearAutoFilter() {
+            if (this.autoFilteredOrganizations.length === 0) {
+                this.updateStatus('Автофильтр уже пуст');
+                return;
+            }
+            
+            if (confirm(`Очистить автофильтр?\n\nУдалить ${this.autoFilteredOrganizations.length} организаций?\n\n✅ Успешные отклики: ${this.autoFilteredOrganizations.length}\n🚫 Больше не будут пропускаться автоматически`)) {
+                const count = this.autoFilteredOrganizations.length;
+                this.autoFilteredOrganizations = [];
+                this.saveSettings();
+                this.updateStatus(`🗑️ Автофильтр очищен (удалено ${count} организаций)`);
+            }
+        }
+        
+        // ===== УНИВЕРСАЛЬНАЯ ОБРАБОТКА ОТКЛИКОВ =====
+        
+        async universalProcess() {
+            console.log('Универсальная обработка отклика...');
+            
+            // Уменьшено время ожидания
+            await this.wait(800);
+            
+            const addLetterButton = document.querySelector('[data-qa="add-cover-letter"]');
+            
+            if (addLetterButton) {
+                console.log('Найдена кнопка "Добавить сопроводительное" - у пользователя 2+ резюме');
+                return await this.processWithCoverLetter();
+            } else {
+                console.log('Кнопка "Добавить сопроводительное" не найдена - у пользователя 1 резюме или прямая отправка');
+                return await this.processDirectOrSimple();
+            }
+        }
+        
+        async processWithCoverLetter() {
+            console.log('Обработка с сопроводительным письмом...');
+            this.updateStatus('📝 Добавляем письмо...');
+            
+            try {
+                const addLetterButton = document.querySelector('[data-qa="add-cover-letter"]');
+                if (!addLetterButton) {
+                    console.log('Кнопка не найдена');
+                    return false;
+                }
+                
+                console.log('Кликаем на кнопку...');
+                addLetterButton.click();
+                await this.wait(600);
+                
+                const textarea = document.querySelector('[data-qa="vacancy-response-popup-form-letter-input"]');
+                if (!textarea) {
+                    console.log('Поле для письма не найдено');
+                    return false;
+                }
+                
+                console.log('Заполняем поле...');
+                
+                const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+                    window.HTMLTextAreaElement.prototype, 
+                    'value'
+                )?.set;
+                
+                if (nativeInputValueSetter) {
+                    nativeInputValueSetter.call(textarea, this.coverLetter);
+                    
+                    // Упрощенная обработка событий
+                    const inputEvent = new Event('input', { bubbles: true });
+                    textarea.dispatchEvent(inputEvent);
+                    
+                    await this.wait(150);
+                } else {
+                    textarea.value = this.coverLetter;
+                    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+                    await this.wait(150);
+                }
+                
+                return await this.submitResponse();
+                
+            } catch (e) {
+                console.log('Ошибка при обработке с письмом:', e);
+                return false;
+            }
+        }
+        
+        async processDirectOrSimple() {
+            console.log('Обработка прямого/простого отклика...');
+            this.updateStatus('📤 Отправляем отклик...');
+            
+            try {
+                const submitButton = document.querySelector('[data-qa="vacancy-response-submit-popup"]');
+                if (submitButton) {
+                    console.log('Найдена кнопка отправки в модалке');
+                    submitButton.click();
+                    await this.wait(1000);
+                    return true;
+                } else {
+                    console.log('Кнопка отправки не найдена - вероятно прямой отклик');
+                    await this.wait(800);
+                    return true;
+                }
+            } catch (e) {
+                console.log('Ошибка при прямом отклике:', e);
+                return false;
+            }
+        }
+        
+        async submitResponse() {
+            console.log('Отправка отклика...');
+            this.updateStatus('📤 Отправляем...');
+            
+            try {
+                const submitButton = document.querySelector('[data-qa="vacancy-response-submit-popup"]');
+                if (!submitButton) {
+                    console.log('Кнопка отправки не найдена');
+                    return false;
+                }
+                
+                submitButton.click();
+                await this.wait(1200);
+                
+                const success = await this.checkSuccess();
+                return success;
+                
+            } catch (e) {
+                console.log('Ошибка отправки:', e);
+                return false;
+            }
+        }
+        
+        async checkSuccess() {
+            await this.wait(800);
+            
+            // Быстрая проверка успешной отправки
+            if (!document.querySelector('[data-qa="vacancy-response-popup"]')) {
+                console.log('Отклик успешно отправлен');
+                return true;
+            }
+            
+            const bodyText = document.body.textContent || '';
+            if (bodyText.includes('отклик отправлен') || 
+                bodyText.includes('успешно отправлен')) {
+                console.log('Отклик успешно отправлен');
+                return true;
+            }
+            
+            console.log('Предполагаем успешную отправку');
+            return true;
         }
         
         updateStatus(message) {
@@ -633,21 +789,24 @@
             }
         }
         
-        // ===== ОСНОВНАЯ ЛОГИКА =====
-        
-        getVacancyId(button) {
-            const vacancyItem = button.closest('.vacancy-serp-item') || 
-                               button.closest('.serp-item') ||
-                               button.closest('[data-qa="vacancy-serp__vacancy"]');
+        getAvailableButtons() {
+            const allButtons = Array.from(document.querySelectorAll('[data-qa="vacancy-serp__vacancy_response"]'));
             
-            if (vacancyItem) {
-                const link = vacancyItem.querySelector('a[href*="/vacancy/"]');
-                if (link && link.href) {
-                    return link.href.split('?')[0];
+            return allButtons.filter(button => {
+                if (button.offsetParent === null || button.style.display === 'none') {
+                    return false;
                 }
-            }
-            
-            return button.href || `vacancy-${Date.now()}`;
+                
+                if (this.isFilteredOrganization(button)) {
+                    return false;
+                }
+                
+                if (this.isAlreadyRespondedVacancy(button)) {
+                    return false;
+                }
+                
+                return true;
+            });
         }
         
         isAlreadyRespondedVacancy(button) {
@@ -659,11 +818,9 @@
             
             if (!parent) return false;
             
-            // Проверяем по data-qa атрибуту
             const respondedElement = parent.querySelector('[data-qa="vacancy-serp__vacancy_responded"]');
             if (respondedElement) return true;
             
-            // Проверяем текст
             const parentText = parent.innerText || parent.textContent || '';
             if (parentText.includes('Вы откликнулись') || 
                 parentText.includes('Вы уже откликнулись') ||
@@ -671,238 +828,20 @@
                 return true;
             }
             
-            // Проверяем кнопку
             const buttonText = button.innerText || button.textContent || '';
             return !buttonText.includes('Откликнуться') && buttonText.trim() !== '';
         }
         
-        getAvailableButtons() {
-            const allButtons = Array.from(document.querySelectorAll('[data-qa="vacancy-serp__vacancy_response"]'));
-            
-            return allButtons.filter(button => {
-                if (button.offsetParent === null) return false;
-                if (button.style.display === 'none') return false;
-                return !this.isAlreadyRespondedVacancy(button);
-            });
-        }
-        
         async safeClick(button) {
             try {
-                // Прокручиваем к кнопке
                 button.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                await this.wait(400);
-                
-                // Подсвечиваем
-                const originalStyle = button.style.cssText;
-                button.style.outline = '3px solid #4CAF50';
-                button.style.outlineOffset = '2px';
-                button.style.transition = 'outline 0.3s';
-                
-                await this.wait(150);
-                
-                // Пробуем разные методы клика
-                try {
-                    button.click();
-                } catch (e) {
-                    // Альтернативный метод
-                    const rect = button.getBoundingClientRect();
-                    const event = new MouseEvent('click', {
-                        view: window,
-                        bubbles: true,
-                        cancelable: true,
-                        clientX: rect.left + rect.width / 2,
-                        clientY: rect.top + rect.height / 2
-                    });
-                    button.dispatchEvent(event);
-                }
-                
-                await this.wait(150);
-                
-                // Возвращаем стиль
-                setTimeout(() => {
-                    button.style.cssText = originalStyle;
-                }, 500);
-                
+                await this.wait(300);
+                button.click();
+                await this.wait(300);
                 return true;
             } catch (error) {
-                console.error('Ошибка клика:', error);
                 return false;
             }
-        }
-        
-        // === МЕТОДЫ ДЛЯ REACT ПОЛЕЙ ===
-        async fillCoverLetterField() {
-            await this.wait(800);
-            
-            const textarea = document.querySelector('[data-qa="vacancy-response-popup-form-letter-input"]');
-            if (!textarea) return false;
-            
-            textarea.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            await this.wait(300);
-            
-            textarea.style.outline = '2px solid #4CAF50';
-            textarea.style.outlineOffset = '2px';
-            
-            textarea.focus();
-            await this.wait(200);
-            textarea.select();
-            await this.wait(100);
-            
-            // Устанавливаем значение
-            try {
-                const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-                    window.HTMLTextAreaElement.prototype, 
-                    'value'
-                ).set;
-                nativeInputValueSetter.call(textarea, this.coverLetter);
-                
-                const reactInputEvent = new Event('input', { bubbles: true, cancelable: true });
-                Object.defineProperty(reactInputEvent, 'target', { value: textarea });
-                textarea.dispatchEvent(reactInputEvent);
-                
-                const changeEvent = new Event('change', { bubbles: true });
-                textarea.dispatchEvent(changeEvent);
-            } catch (e) {
-                textarea.value = this.coverLetter;
-                ['input', 'change', 'blur'].forEach(eventType => {
-                    const event = new Event(eventType, { bubbles: true });
-                    Object.defineProperty(event, 'target', { value: textarea });
-                    textarea.dispatchEvent(event);
-                });
-            }
-            
-            await this.wait(300);
-            
-            if (textarea.value && textarea.value.length > 10) {
-                setTimeout(() => { textarea.style.outline = ''; }, 500);
-                return true;
-            }
-            
-            return false;
-        }
-        
-        async clickAddCoverLetterButton() {
-            const buttonSelectors = [
-                '.magritte-button-view___53Slm_7-0-6',
-                'span.magritte-button-view___53Slm_7-0-6',
-                '[class*="magritte-button-view"]',
-                '[class*="magritte-button__label"]'
-            ];
-            
-            for (const selector of buttonSelectors) {
-                const elements = document.querySelectorAll(selector);
-                for (const element of elements) {
-                    if (element.textContent && element.textContent.includes('Добавить сопроводительное')) {
-                        for (let attempt = 1; attempt <= 2; attempt++) {
-                            try {
-                                element.click();
-                                await this.wait(500);
-                                return true;
-                            } catch (e) {
-                                try {
-                                    const parent = element.parentElement;
-                                    if (parent) {
-                                        parent.click();
-                                        await this.wait(500);
-                                        return true;
-                                    }
-                                } catch (e) {}
-                            }
-                            await this.wait(200);
-                        }
-                    }
-                }
-            }
-            
-            // Поиск по тексту
-            const allElements = document.querySelectorAll('*');
-            for (const element of allElements) {
-                if (element.textContent && element.textContent.trim() === 'Добавить сопроводительное') {
-                    try {
-                        element.click();
-                        await this.wait(500);
-                        return true;
-                    } catch (e) {
-                        console.log('Не удалось кликнуть');
-                    }
-                }
-            }
-            
-            return false;
-        }
-        
-        async clickSubmitButton() {
-            const submitSelectors = [
-                '[data-qa="vacancy-response-submit-popup"]',
-                'button[type="submit"]',
-                '.vacancy-response-popup__submit'
-            ];
-            
-            for (const selector of submitSelectors) {
-                const button = document.querySelector(selector);
-                if (button) {
-                    try {
-                        button.click();
-                        return true;
-                    } catch (e) {
-                        console.log('Ошибка:', e);
-                    }
-                }
-            }
-            
-            // Ищем по тексту
-            const textButtons = ['Откликнуться', 'Отправить отклик'];
-            const allButtons = document.querySelectorAll('button');
-            
-            for (const button of allButtons) {
-                for (const text of textButtons) {
-                    if (button.textContent && button.textContent.includes(text)) {
-                        try {
-                            button.click();
-                            return true;
-                        } catch (e) {
-                            console.log('Ошибка:', e);
-                        }
-                    }
-                }
-            }
-            
-            return false;
-        }
-        
-        async processModalWindow() {
-            await this.wait(2000);
-            
-            try {
-                this.updateStatus('📝 Нажимаем "Добавить сопроводительное"...');
-                const letterButtonClicked = await this.clickAddCoverLetterButton();
-                
-                let letterFilled = false;
-                if (letterButtonClicked) {
-                    this.updateStatus('✍️ Заполняем письмо...');
-                    letterFilled = await this.fillCoverLetterField();
-                }
-                
-                if (!letterButtonClicked) {
-                    this.updateStatus('✍️ Заполняем письмо...');
-                    letterFilled = await this.fillCoverLetterField();
-                }
-                
-                this.updateStatus('📤 Отправляем отклик...');
-                const submitted = await this.clickSubmitButton();
-                
-                if (submitted) {
-                    await this.wait(1000);
-                    this.updateStatus('✅ Отклик отправлен!');
-                    return true;
-                }
-                
-            } catch (error) {
-                console.log('Ошибка при обработке модалки:', error);
-                this.updateStatus('❌ Ошибка при обработке');
-            }
-            
-            return false;
         }
         
         async processSingleVacancy(button, index, total) {
@@ -911,45 +850,37 @@
             this.stats.total++;
             this.updateStatsDisplay();
             
-            const vacancyId = this.getVacancyId(button);
+            const orgName = this.getOrganizationName(button);
             
-            if (this.processedVacancies.has(vacancyId)) {
-                this.stats.skipped++;
-                this.updateStatsDisplay();
-                this.updateStatus(`⏭️ ${index + 1}/${total}: уже обработана`);
-                return false;
-            }
-            
-            if (this.isAlreadyRespondedVacancy(button)) {
-                this.processedVacancies.add(vacancyId);
-                this.stats.skipped++;
-                this.updateStatsDisplay();
-                this.updateStatus(`⏭️ ${index + 1}/${total}: уже откликались`);
-                return false;
-            }
-            
-            this.updateStatus(`🎯 ${index + 1}/${total}: обрабатываем...`);
+            this.updateStatus(`🎯 ${index + 1}/${total}: ${orgName || 'Обработка...'}`);
             
             const clicked = await this.safeClick(button);
             
             if (!clicked) {
-                this.processedVacancies.add(vacancyId);
                 this.stats.failed++;
                 this.updateStatsDisplay();
                 this.updateStatus(`❌ ${index + 1}/${total}: не удалось нажать`);
                 return false;
             }
             
-            const success = await this.processModalWindow();
+            const success = await this.universalProcess();
             
             if (success) {
-                this.processedVacancies.add(vacancyId);
+                if (orgName && this.settings.autoRememberOrganizations) {
+                    const added = this.addToAutoFilter(orgName);
+                    if (added) {
+                        this.updateStatus(`✅ ${index + 1}/${total}: отправлено! "${orgName}" добавлена в автофильтр`);
+                    } else {
+                        this.updateStatus(`✅ ${index + 1}/${total}: отправлено!`);
+                    }
+                } else {
+                    this.updateStatus(`✅ ${index + 1}/${total}: отправлено!`);
+                }
+                
                 this.stats.success++;
                 this.updateStatsDisplay();
-                this.updateStatus(`✅ ${index + 1}/${total}: отправлено!`);
                 return true;
             } else {
-                this.processedVacancies.add(vacancyId);
                 this.stats.failed++;
                 this.updateStatsDisplay();
                 this.updateStatus(`⚠️ ${index + 1}/${total}: не удалось`);
@@ -963,14 +894,9 @@
                 return;
             }
             
-            console.log('🚀 Запуск авто-отклика...');
             this.isRunning = true;
-            
             this.updateControlButtons();
-            this.updateStatus('🚀 Запуск авто-отклика...');
-            
-            this.stats = { success: 0, failed: 0, skipped: 0, total: 0 };
-            this.updateStatsDisplay();
+            this.updateStatus('🚀 Запуск...');
             
             try {
                 while (this.isRunning) {
@@ -980,18 +906,16 @@
                         this.updateStatus('✅ Все доступные вакансии обработаны');
                         
                         if (this.settings.autoNextPage) {
-                            const nextBtn = document.querySelector('[data-qa="pager-next"]:not([disabled])');
-                            if (nextBtn && this.isRunning) {
-                                this.updateStatus('➡️ Переход на следующую страницу...');
-                                await this.wait(1500);
+                            const nextBtn = document.querySelector('[data-qa="pager-next"]');
+                            if (nextBtn) {
+                                this.updateStatus('➡️ Переход на след. страницу...');
                                 nextBtn.click();
-                                await this.wait(3000);
+                                await this.wait(2000);
                                 continue;
                             }
                         }
                         
                         this.updateStatus(`🎉 Завершено! Успешно: ${this.stats.success}, Ошибок: ${this.stats.failed}`);
-                        this.stopAutoProcess();
                         break;
                     }
                     
@@ -1002,97 +926,81 @@
                         
                         await this.processSingleVacancy(buttons[i], i, buttons.length);
                         
-                        if (i < buttons.length - 1 && this.isRunning) {
-                            this.updateStatus(`⏳ Пауза ${this.settings.delay} секунд...`);
+                        if (i < buttons.length - 1) {
                             await this.wait(this.settings.delay * 1000);
                         }
                     }
                     
-                    if (this.isRunning) {
-                        await this.wait(500);
-                    }
+                    await this.wait(800);
                 }
             } catch (error) {
-                console.error('Ошибка основного процесса:', error);
-                this.updateStatus('❌ Ошибка процесса');
+                console.error('Ошибка процесса:', error);
+                this.updateStatus('❌ Ошибка');
             } finally {
-                this.isRunning = false;
-                this.updateControlButtons();
+                this.stopAutoProcess();
             }
         }
         
         stopAutoProcess() {
-            console.log('⏹️ Остановка авто-отклика...');
             this.isRunning = false;
             this.updateControlButtons();
-            this.updateStatus('⏹️ Процесс остановлен');
+            this.updateStatus('⏹️ Остановлено');
         }
         
         async testProcess() {
-            if (this.isRunning) {
-                this.updateStatus('⚠️ Сначала остановите текущий процесс');
+            const buttons = this.getAvailableButtons();
+            if (buttons.length === 0) {
+                this.updateStatus('❌ Нет вакансий для теста');
                 return;
             }
             
             this.updateStatus('🧪 Тестируем...');
-            
-            const buttons = this.getAvailableButtons();
-            if (buttons.length === 0) {
-                this.updateStatus('❌ Нет доступных вакансий для теста');
-                return;
-            }
-            
-            this.updateStatus('🎯 Нажимаем на первую вакансию...');
-            
             this.isRunning = true;
             const success = await this.processSingleVacancy(buttons[0], 0, 1);
             this.isRunning = false;
-            
             this.updateControlButtons();
             
-            if (success) {
-                this.updateStatus('✅ Тест успешен! Можно запускать авто-отклик.');
-            } else {
-                this.updateStatus('⚠️ Тест не удался. Проверьте консоль (F12).');
-            }
+            this.updateStatus(success ? '✅ Тест успешен!' : '⚠️ Тест не удался');
+        }
+        
+        testFilter() {
+            const buttons = document.querySelectorAll('[data-qa="vacancy-serp__vacancy_response"]');
+            let result = '🔍 Тест фильтра:\n\n';
+            
+            buttons.forEach((btn, i) => {
+                const org = this.getOrganizationName(btn);
+                const filtered = this.isFilteredOrganization(btn);
+                result += `${i + 1}. ${org || '???'} - ${filtered ? '🚫 ФИЛЬТР' : '✅ НОРМА'}\n`;
+            });
+            
+            this.updateStatus(result);
         }
         
         analyzePage() {
-            const buttons = this.getAvailableButtons();
-            const allElements = document.querySelectorAll('[data-qa="vacancy-serp__vacancy_response"]');
-            const responded = Array.from(allElements).filter(btn => this.isAlreadyRespondedVacancy(btn));
+            const all = document.querySelectorAll('[data-qa="vacancy-serp__vacancy_response"]').length;
+            const available = this.getAvailableButtons().length;
             
-            const analysis = `📊 Анализ страницы:
-• Всего вакансий: ${allElements.length}
-• Уже откликнулись: ${responded.length}
-• Доступно для отклика: ${buttons.length}
-• Обработано в сессии: ${this.stats.total}`;
-            
-            this.updateStatus(analysis);
+            this.updateStatus(`📊 Анализ:\nВсего: ${all}\nДоступно: ${available}\nУспешно: ${this.stats.success}\nОшибок: ${this.stats.failed}`);
         }
         
         clearHistory() {
-            if (confirm('Очистить историю обработанных вакансий?')) {
-                this.processedVacancies.clear();
-                this.stats = { success: 0, failed: 0, skipped: 0, total: 0 };
-                this.updateStatsDisplay();
-                this.updateStatus('🗑️ История очищена');
-            }
+            this.processedVacancies.clear();
+            this.stats = { success: 0, failed: 0, skipped: 0, total: 0 };
+            this.updateStatsDisplay();
+            this.updateStatus('🗑️ История очищена');
         }
     }
     
-    // Запускаем когда страница загружена
     function initialize() {
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', () => {
-                setTimeout(() => new HHAutoResponder(), 1000);
+                setTimeout(() => new HHAutoResponder(), 800);
             });
         } else {
-            setTimeout(() => new HHAutoResponder(), 1000);
+            setTimeout(() => new HHAutoResponder(), 800);
         }
     }
     
-    // ===== ОБРАБОТЧИК СООБЩЕНИЙ ДЛЯ POPUP =====
     chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
         if (request.action === 'checkConnection') {
             sendResponse({ 
@@ -1102,7 +1010,6 @@
         return true;
     });
     
-    // Запускаем инициализацию
     initialize();
     
 })();
