@@ -1,31 +1,23 @@
 # Security Policy
-
 ## Supported Versions
-
-Security updates are provided for the **latest release** of this browser extension.
-
-| Version | Supported          |
+Security updates are provided for the **latest release**.
+| Version | Supported |
 | ------- | ------------------ |
-| Latest Release (e.g., 1.1.x) | ✅ Yes |
-| Older releases               | ❌ No  |
-
+| Latest Release | ✅ Yes |
+| Older releases | ❌ No |
 ## Reporting a Vulnerability
-
-**🛑 Please do NOT report security vulnerabilities through public GitHub Issues or Discussions.**
-
-If you believe you have found a security vulnerability in this extension:
-1. **Contact me privately** at **youremail@example.com**.
-2. Provide a clear description of the issue and steps to reproduce it if possible.
-3. I will acknowledge receipt within **48 hours** and provide a more detailed response within **5 days**.
-
+**🛑 Please do NOT report security vulnerabilities through public GitHub Issues.**
+If you believe you have found a security vulnerability:
+1. **Contact me privately** by creating a new **Issue** and marking it with the `security` label.
+2. Provide a clear description and steps to reproduce.
+3. I will respond within **48 hours**.
 ### What to Expect
-*   **If the vulnerability is accepted:** I will work on a fix and release an update as soon as possible. You will be credited for the discovery (if desired).
-*   **If the vulnerability is declined:** I will explain why it is not considered a security issue in the context of this project.
-
+*   **If accepted:** I will work on a fix and release an update.
+*   **If declined:** I will explain why.
 ## Security Considerations for This Project
-
-This is a **client-side browser extension**. All code executes in the user's browser. However, please be aware of the following scope:
-
-*   This extension can interact with web pages (**HH-Auto-Responder-Pro**) or make network requests (**Quick Ping**).
-*   Reports related to **insecure input handling, permission misuse, or potential abuse vectors** are within scope.
-*   General web security issues not specific to this extension's code are out of scope.
+This extension **automates actions on the HH.ru website**. It can interact with web pages, access user data within the HH.ru interface, and perform automated clicks and form submissions. Reports related to the following are **within scope**:
+*   Insecure handling of user session data or credentials.
+*   Vulnerabilities that could lead to unauthorized actions on a user's HH.ru account.
+*   Data leakage through the extension's logic.
+*   Permission misuse of the extension's browser APIs.
+General HH.ru website vulnerabilities are **out of scope** and should be reported to HH.ru.
