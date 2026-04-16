@@ -1,8 +1,8 @@
-// ===== HH АВТО-ОТКЛИК v1.3 (ПОЛНАЯ ВЕРСИЯ + ФИКС ЧАТА) =====
+// ===== HH АВТО-ОТКЛИК v1.2 (ПОЛНАЯ СТАБИЛЬНАЯ ВЕРСИЯ) =====
 (function() {
     'use strict';
     
-    console.log('=== HH Авто-отклик v1.3 (Полная версия) ===');
+    console.log('=== HH Авто-отклик v1.2 ===');
     
     if (!window.location.href.includes('hh.ru')) {
         console.log('⚠️ Не страница HH.ru, скрипт не активирован');
@@ -130,7 +130,7 @@
             this.panel.innerHTML = `
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                     <div style="display: flex; align-items: center; gap: 8px;">
-                        <h3 style="margin: 0; color: #2196F3; font-size: 16px;">HH Авто-отклик v1.3</h3>
+                        <h3 style="margin: 0; color: #2196F3; font-size: 16px;">HH Авто-отклик v1.2</h3>
                     </div>
                     <div style="display: flex; align-items: center; gap: 10px;">
                         <div style="display: flex; align-items: center; gap: 6px;">
@@ -608,116 +608,101 @@
             }
         }
         
-        // ===== ИСПРАВЛЕННАЯ УНИВЕРСАЛЬНАЯ ОБРАБОТКА ОТКЛИКОВ (С ПОДДЕРЖКОЙ ЧАТА) =====
+        // ===== ЗАКРЫТИЕ ЧАТА =====
+        
+        async closeChatIfOpened() {
+            try {
+                const closeButton = document.querySelector('[data-qa="chatik-close-chatik"]');
+                
+                if (closeButton) {
+                    console.log('🚫 Обнаружен чат, закрываем его...');
+                    closeButton.click();
+                    await this.wait(500);
+                    return true;
+                }
+                
+                const allButtons = document.querySelectorAll('button');
+                for (const btn of allButtons) {
+                    if (btn.getAttribute('aria-label') === 'close') {
+                        console.log('🚫 Закрываем чат');
+                        btn.click();
+                        await this.wait(500);
+                        return true;
+                    }
+                }
+                
+                return false;
+            } catch (e) {
+                console.log('Ошибка при закрытии чата:', e);
+                return false;
+            }
+        }
+        
+        // ===== УНИВЕРСАЛЬНАЯ ОБРАБОТКА ОТКЛИКОВ (СТАБИЛЬНАЯ) =====
         
         async universalProcess() {
             console.log('🔄 Универсальная обработка отклика...');
             await this.wait(800);
             
-            // Проверяем наличие разных элементов
-            const addLetterButton = document.querySelector('[data-qa="add-cover-letter"]');
-            const chatInput = document.querySelector('[data-qa="chat-input"]') || 
-                             document.querySelector('textarea[placeholder*="Сообщение"]') ||
-                             document.querySelector('textarea[placeholder*="сообщение"]');
+            // 0. Закрываем чат
+            await this.closeChatIfOpened();
             
-            // СЦЕНАРИЙ 1: Есть чат (не требуется письмо)
-            if (chatInput && !addLetterButton) {
-                console.log('💬 Обнаружен режим ЧАТА - отправляем сообщение');
-                return await this.processChatMode();
+            // 1. Проверяем поле для письма (уже открыто)
+            const textarea = document.querySelector('[data-qa="vacancy-response-popup-form-letter-input"]');
+            
+            if (textarea) {
+                console.log('📝 Найдено поле для письма');
+                
+                if (!this.settings.skipCoverLetter) {
+                    const nativeSetter = Object.getOwnPropertyDescriptor(
+                        window.HTMLTextAreaElement.prototype, 
+                        'value'
+                    )?.set;
+                    
+                    if (nativeSetter) {
+                        nativeSetter.call(textarea, this.coverLetter);
+                        textarea.dispatchEvent(new Event('input', { bubbles: true }));
+                        textarea.dispatchEvent(new Event('change', { bubbles: true }));
+                    } else {
+                        textarea.value = this.coverLetter;
+                        textarea.dispatchEvent(new Event('input', { bubbles: true }));
+                    }
+                    
+                    this.updateStatus('📝 Письмо добавлено');
+                    await this.wait(500);
+                }
+                
+                return await this.submitResponse();
             }
             
-            // СЦЕНАРИЙ 2: Есть кнопка добавления письма
+            // 2. Кнопка "Добавить сопроводительное"
+            const addLetterButton = document.querySelector('[data-qa="add-cover-letter"]');
+            
             if (addLetterButton) {
                 if (this.settings.skipCoverLetter) {
-                    console.log('⏭️ Письмо отключено в настройках, отправляем без письма');
                     return await this.processDirectOrSimple();
                 }
-                console.log('📝 Обработка с сопроводительным письмом');
-                return await this.processWithCoverLetter();
+                console.log('📝 Нажимаем "Добавить сопроводительное"');
+                addLetterButton.click();
+                await this.wait(800);
+                return await this.universalProcess();
             }
             
-            // СЦЕНАРИЙ 3: Прямая отправка
-            console.log('📤 Прямая отправка');
+            // 3. Кнопка "Все равно откликнуться"
+            const relocationButton = document.querySelector('[data-qa="relocation-warning-confirm"]') ||
+                                     Array.from(document.querySelectorAll('button')).find(btn => 
+                                         btn.textContent && btn.textContent.trim() === 'Все равно откликнуться'
+                                     );
+            
+            if (relocationButton) {
+                console.log('📍 Подтверждаем переезд');
+                relocationButton.click();
+                await this.wait(800);
+                return await this.universalProcess();
+            }
+            
+            // 4. Прямая отправка
             return await this.processDirectOrSimple();
-        }
-        
-        async processChatMode() {
-            console.log('💬 Обработка через ЧАТ...');
-            this.updateStatus('💬 Отправка через чат...');
-            
-            try {
-                await this.wait(500);
-                
-                // Ищем поле ввода сообщения
-                let chatInput = document.querySelector('[data-qa="chat-input"]') || 
-                               document.querySelector('textarea[placeholder*="Сообщение"]') ||
-                               document.querySelector('textarea[placeholder*="сообщение"]') ||
-                               document.querySelector('.chat-input__field') ||
-                               document.querySelector('textarea');
-                
-                if (!chatInput) {
-                    console.log('❌ Поле чата не найдено');
-                    return false;
-                }
-                
-                console.log('✅ Поле чата найдено, заполняем...');
-                
-                chatInput.focus();
-                chatInput.click();
-                await this.wait(200);
-                
-                // Заполняем поле сообщением
-                const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-                    window.HTMLTextAreaElement.prototype, 
-                    'value'
-                )?.set;
-                
-                if (nativeInputValueSetter) {
-                    nativeInputValueSetter.call(chatInput, this.coverLetter);
-                    chatInput.dispatchEvent(new Event('input', { bubbles: true }));
-                    chatInput.dispatchEvent(new Event('change', { bubbles: true }));
-                } else {
-                    chatInput.value = this.coverLetter;
-                    chatInput.dispatchEvent(new Event('input', { bubbles: true }));
-                }
-                
-                await this.wait(300);
-                
-                // Ищем кнопку отправки
-                let sendButton = document.querySelector('[data-qa="chat-send"]') ||
-                                document.querySelector('button[type="submit"]') ||
-                                document.querySelector('.chat-send-button');
-                
-                if (!sendButton) {
-                    const buttons = document.querySelectorAll('button');
-                    for (const btn of buttons) {
-                        if (btn.textContent.includes('Отправить') || 
-                            btn.textContent.includes('Send') ||
-                            btn.innerHTML.includes('send')) {
-                            sendButton = btn;
-                            break;
-                        }
-                    }
-                }
-                
-                if (sendButton) {
-                    console.log('📤 Отправляем сообщение');
-                    sendButton.click();
-                    await this.wait(1000);
-                    return true;
-                }
-                
-                // Если нет кнопки, пробуем Enter
-                console.log('⌨️ Отправляем через Enter');
-                chatInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
-                await this.wait(500);
-                
-                return true;
-                
-            } catch (e) {
-                console.log('❌ Ошибка в чате:', e);
-                return false;
-            }
         }
         
         async processWithCoverLetter() {
@@ -774,17 +759,17 @@
             try {
                 const submitButton = document.querySelector('[data-qa="vacancy-response-submit-popup"]');
                 if (submitButton) {
-                    console.log('Найдена кнопка отправки в модалке');
+                    console.log('Найдена кнопка отправки');
                     submitButton.click();
                     await this.wait(1000);
                     return true;
                 } else {
-                    console.log('Кнопка отправки не найдена - вероятно прямой отклик');
+                    console.log('Прямой отклик');
                     await this.wait(800);
                     return true;
                 }
             } catch (e) {
-                console.log('Ошибка при прямом отклике:', e);
+                console.log('Ошибка:', e);
                 return false;
             }
         }
@@ -794,10 +779,20 @@
             this.updateStatus('📤 Отправляем...');
             
             try {
-                const submitButton = document.querySelector('[data-qa="vacancy-response-submit-popup"]');
+                let submitButton = document.querySelector('[data-qa="vacancy-response-submit-popup"]:not([disabled])');
+                
+                if (!submitButton) {
+                    submitButton = document.querySelector('[data-qa="vacancy-response-submit-popup"]');
+                }
+                
                 if (!submitButton) {
                     console.log('Кнопка отправки не найдена');
                     return false;
+                }
+                
+                if (submitButton.hasAttribute('disabled')) {
+                    console.log('Кнопка заблокирована, ждём...');
+                    await this.wait(1000);
                 }
                 
                 submitButton.click();
