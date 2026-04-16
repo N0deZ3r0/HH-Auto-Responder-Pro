@@ -1,8 +1,8 @@
-// ===== HH АВТО-ОТКЛИК =====
+// ===== HH АВТО-ОТКЛИК v1.3 (ПОЛНАЯ ВЕРСИЯ + ФИКС ЧАТА) =====
 (function() {
     'use strict';
     
-    console.log('=== HH Авто-отклик v1.2 ===');
+    console.log('=== HH Авто-отклик v1.3 (Полная версия) ===');
     
     if (!window.location.href.includes('hh.ru')) {
         console.log('⚠️ Не страница HH.ru, скрипт не активирован');
@@ -11,7 +11,7 @@
     
     class HHAutoResponder {
         constructor() {
-            this.coverLetter = `Добрый день!Заинтересовала ваша вакансия.Мой опыт соответствует требованиям.Готов(а) к собеседованию.С уважением,[Ваше Имя]`;
+            this.coverLetter = `Добрый день! Заинтересовала ваша вакансия. Мой опыт соответствует требованиям. Готов(а) к собеседованию. С уважением, [Ваше Имя]`;
             this.isRunning = false;
             this.processedVacancies = new Set();
             this.stats = { success: 0, failed: 0, skipped: 0, total: 0 };
@@ -21,7 +21,7 @@
                 delay: 0.5,
                 filterOrganizations: true,
                 autoRememberOrganizations: true,
-                skipCoverLetter: false  // НОВАЯ НАСТРОЙКА: пропускать сопроводительное письмо
+                skipCoverLetter: false
             };
             this.filteredOrganizations = [];
             this.autoFilteredOrganizations = [];
@@ -130,7 +130,7 @@
             this.panel.innerHTML = `
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                     <div style="display: flex; align-items: center; gap: 8px;">
-                        <h3 style="margin: 0; color: #2196F3; font-size: 16px;">HH Авто-отклик</h3>
+                        <h3 style="margin: 0; color: #2196F3; font-size: 16px;">HH Авто-отклик v1.3</h3>
                     </div>
                     <div style="display: flex; align-items: center; gap: 10px;">
                         <div style="display: flex; align-items: center; gap: 6px;">
@@ -253,7 +253,7 @@
                     <button id="hh-clear" style="flex: 1; padding: 8px; background: linear-gradient(135deg, #607D8B, #455a64); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px;">
                         <span style="display: flex; align-items: center; justify-content: center; gap: 6px;">
                             <span>🗑️</span>
-                            <span>Очистить</span>
+                            <span>Очистить статистику</span>
                         </span>
                     </button>
                     <button id="hh-clear-auto-filter" style="flex: 1; padding: 8px; background: linear-gradient(135deg, #f44336, #d32f2f); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px;">
@@ -311,7 +311,6 @@
                 this.panel.style.display = 'none';
             });
             
-            // Исправленный переключатель темы
             const themeSlider = document.getElementById('hh-theme-slider');
             if (themeSlider) {
                 themeSlider.addEventListener('click', () => {
@@ -329,12 +328,10 @@
             document.getElementById('hh-clear').addEventListener('click', () => this.clearHistory());
             document.getElementById('hh-clear-auto-filter').addEventListener('click', () => this.clearAutoFilter());
             
-            // НОВЫЙ: обработчик для чекбокса отключения сопроводительного письма
             document.getElementById('hh-skip-cover-letter').addEventListener('change', (e) => {
                 this.settings.skipCoverLetter = e.target.checked;
                 this.saveSettings();
                 
-                // Визуальное обновление textarea (блокировка/разблокировка)
                 const textarea = document.getElementById('hh-letter');
                 const skipLabel = e.target.closest('label').querySelector('span');
                 
@@ -407,7 +404,6 @@
         applyThemeWithoutReload() {
             const isDark = this.theme === 'dark';
             
-            // Обновляем ползунок темы
             const handle = document.getElementById('hh-theme-slider-handle');
             const moonIcon = document.getElementById('hh-moon-icon');
             const sunIcon = document.getElementById('hh-sun-icon');
@@ -422,7 +418,6 @@
             if (sunIcon) sunIcon.style.color = isDark ? '#aaa' : '#FF9800';
             if (slider) slider.style.background = isDark ? '#2d2d2d' : '#e0e0e0';
             
-            // Обновляем цвета панели
             const bgColor = isDark ? '#1e1e1e' : 'white';
             const textColor = isDark ? '#ffffff' : '#333333';
             const borderColor = isDark ? '#444444' : '#4CAF50';
@@ -432,12 +427,10 @@
             const inputBg = isDark ? '#2d2d2d' : 'white';
             const inputBorder = isDark ? '#555555' : '#dddddd';
             
-            // Обновляем панель
             this.panel.style.background = bgColor;
             this.panel.style.color = textColor;
             this.panel.style.borderColor = borderColor;
             
-            // Обновляем статус
             const statusEl = document.getElementById('hh-status');
             if (statusEl) {
                 statusEl.style.background = statusBg;
@@ -445,14 +438,12 @@
                 statusEl.style.borderColor = inputBorder;
             }
             
-            // Обновляем статистику
             const statsEl = document.getElementById('hh-stats');
             if (statsEl) {
                 statsEl.style.background = isDark ? '#2d2d2d' : '#f5f5f5';
                 statsEl.style.borderColor = inputBorder;
             }
             
-            // Обновляем инпуты
             const textarea = document.getElementById('hh-letter');
             const delayInput = document.getElementById('hh-delay');
             const filterTextarea = document.getElementById('hh-filter-text');
@@ -475,30 +466,9 @@
                 filterTextarea.style.borderColor = inputBorder;
             }
             
-            // Обновляем счетчики и текст
             const countEl = document.getElementById('hh-count');
             if (countEl) countEl.style.color = textColor;
             
-            // Обновляем все текстовые элементы
-            const labels = this.panel.querySelectorAll('label, div, span:not(#hh-char-count)');
-            labels.forEach(el => {
-                if (el.closest('button') || el.id?.startsWith('hh-')) {
-                    return;
-                }
-                if (el.style.color && !el.style.color.includes('white') && !el.style.color.includes('#2196F3')) {
-                    el.style.color = textColor;
-                }
-            });
-            
-            // Обновляем вторичный текст
-            const secondaryElements = this.panel.querySelectorAll('span[style*="color: #"], span[style*="color:#"]');
-            secondaryElements.forEach(el => {
-                if (el.style.color.includes('#666') || el.style.color.includes('#aaa')) {
-                    el.style.color = secondaryText;
-                }
-            });
-            
-            // Обновляем кнопку переключения
             const btnBg = isDark ? 'linear-gradient(135deg, #333, #555)' : 'linear-gradient(135deg, #2196F3, #1976D2)';
             this.toggleButton.style.background = btnBg;
         }
@@ -638,29 +608,115 @@
             }
         }
         
-        // ===== УНИВЕРСАЛЬНАЯ ОБРАБОТКА ОТКЛИКОВ =====
+        // ===== ИСПРАВЛЕННАЯ УНИВЕРСАЛЬНАЯ ОБРАБОТКА ОТКЛИКОВ (С ПОДДЕРЖКОЙ ЧАТА) =====
         
         async universalProcess() {
-            console.log('Универсальная обработка отклика...');
-            
-            // Уменьшено время ожидания
+            console.log('🔄 Универсальная обработка отклика...');
             await this.wait(800);
             
+            // Проверяем наличие разных элементов
             const addLetterButton = document.querySelector('[data-qa="add-cover-letter"]');
+            const chatInput = document.querySelector('[data-qa="chat-input"]') || 
+                             document.querySelector('textarea[placeholder*="Сообщение"]') ||
+                             document.querySelector('textarea[placeholder*="сообщение"]');
             
-            // ЕСЛИ ОТКЛЮЧЕНО СОПРОВОДИТЕЛЬНОЕ ПИСЬМО - отправляем без него
-            if (this.settings.skipCoverLetter) {
-                console.log('Сопроводительное письмо ОТКЛЮЧЕНО - отправляем без него');
-                this.updateStatus('📤 Отправка без письма...');
-                return await this.processDirectOrSimple();
+            // СЦЕНАРИЙ 1: Есть чат (не требуется письмо)
+            if (chatInput && !addLetterButton) {
+                console.log('💬 Обнаружен режим ЧАТА - отправляем сообщение');
+                return await this.processChatMode();
             }
             
+            // СЦЕНАРИЙ 2: Есть кнопка добавления письма
             if (addLetterButton) {
-                console.log('Найдена кнопка "Добавить сопроводительное" - у пользователя 2+ резюме');
+                if (this.settings.skipCoverLetter) {
+                    console.log('⏭️ Письмо отключено в настройках, отправляем без письма');
+                    return await this.processDirectOrSimple();
+                }
+                console.log('📝 Обработка с сопроводительным письмом');
                 return await this.processWithCoverLetter();
-            } else {
-                console.log('Кнопка "Добавить сопроводительное" не найдена - у пользователя 1 резюме или прямая отправка');
-                return await this.processDirectOrSimple();
+            }
+            
+            // СЦЕНАРИЙ 3: Прямая отправка
+            console.log('📤 Прямая отправка');
+            return await this.processDirectOrSimple();
+        }
+        
+        async processChatMode() {
+            console.log('💬 Обработка через ЧАТ...');
+            this.updateStatus('💬 Отправка через чат...');
+            
+            try {
+                await this.wait(500);
+                
+                // Ищем поле ввода сообщения
+                let chatInput = document.querySelector('[data-qa="chat-input"]') || 
+                               document.querySelector('textarea[placeholder*="Сообщение"]') ||
+                               document.querySelector('textarea[placeholder*="сообщение"]') ||
+                               document.querySelector('.chat-input__field') ||
+                               document.querySelector('textarea');
+                
+                if (!chatInput) {
+                    console.log('❌ Поле чата не найдено');
+                    return false;
+                }
+                
+                console.log('✅ Поле чата найдено, заполняем...');
+                
+                chatInput.focus();
+                chatInput.click();
+                await this.wait(200);
+                
+                // Заполняем поле сообщением
+                const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+                    window.HTMLTextAreaElement.prototype, 
+                    'value'
+                )?.set;
+                
+                if (nativeInputValueSetter) {
+                    nativeInputValueSetter.call(chatInput, this.coverLetter);
+                    chatInput.dispatchEvent(new Event('input', { bubbles: true }));
+                    chatInput.dispatchEvent(new Event('change', { bubbles: true }));
+                } else {
+                    chatInput.value = this.coverLetter;
+                    chatInput.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+                
+                await this.wait(300);
+                
+                // Ищем кнопку отправки
+                let sendButton = document.querySelector('[data-qa="chat-send"]') ||
+                                document.querySelector('button[type="submit"]') ||
+                                document.querySelector('.chat-send-button');
+                
+                if (!sendButton) {
+                    const buttons = document.querySelectorAll('button');
+                    for (const btn of buttons) {
+                        if (btn.textContent.includes('Отправить') || 
+                            btn.textContent.includes('Send') ||
+                            btn.innerHTML.includes('send')) {
+                            sendButton = btn;
+                            break;
+                        }
+                    }
+                }
+                
+                if (sendButton) {
+                    console.log('📤 Отправляем сообщение');
+                    sendButton.click();
+                    await this.wait(1000);
+                    return true;
+                }
+                
+                // Если нет кнопки, пробуем Enter
+                console.log('⌨️ Отправляем через Enter');
+                chatInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+                await this.wait(500);
+                
+                return true;
+                
+            } catch (e) {
+                console.log('❌ Ошибка в чате:', e);
+                return false;
             }
         }
         
@@ -694,11 +750,8 @@
                 
                 if (nativeInputValueSetter) {
                     nativeInputValueSetter.call(textarea, this.coverLetter);
-                    
-                    // Упрощенная обработка событий
                     const inputEvent = new Event('input', { bubbles: true });
                     textarea.dispatchEvent(inputEvent);
-                    
                     await this.wait(150);
                 } else {
                     textarea.value = this.coverLetter;
@@ -762,7 +815,6 @@
         async checkSuccess() {
             await this.wait(800);
             
-            // Быстрая проверка успешной отправки
             if (!document.querySelector('[data-qa="vacancy-response-popup"]')) {
                 console.log('Отклик успешно отправлен');
                 return true;
@@ -777,6 +829,16 @@
             
             console.log('Предполагаем успешную отправку');
             return true;
+        }
+        
+        async closeModal() {
+            const closeBtn = document.querySelector('[data-qa="vacancy-response-popup-close"]') ||
+                            document.querySelector('.modal-close') ||
+                            document.querySelector('[aria-label="Закрыть"]');
+            if (closeBtn) {
+                closeBtn.click();
+                await this.wait(300);
+            }
         }
         
         updateStatus(message) {
@@ -874,7 +936,7 @@
                 button.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 await this.wait(300);
                 button.click();
-                await this.wait(300);
+                await this.wait(500);
                 return true;
             } catch (error) {
                 return false;
@@ -916,11 +978,13 @@
                 
                 this.stats.success++;
                 this.updateStatsDisplay();
+                await this.closeModal();
                 return true;
             } else {
                 this.stats.failed++;
                 this.updateStatsDisplay();
                 this.updateStatus(`⚠️ ${index + 1}/${total}: не удалось`);
+                await this.closeModal();
                 return false;
             }
         }
@@ -1024,7 +1088,7 @@
             this.processedVacancies.clear();
             this.stats = { success: 0, failed: 0, skipped: 0, total: 0 };
             this.updateStatsDisplay();
-            this.updateStatus('🗑️ История очищена');
+            this.updateStatus('🗑️ Статистика очищена');
         }
     }
     
