@@ -2,7 +2,7 @@
 (function() {
     'use strict';
     
-    console.log('=== HH Авто-отклик v1.1 ===');
+    console.log('=== HH Авто-отклик v1.2 ===');
     
     if (!window.location.href.includes('hh.ru')) {
         console.log('⚠️ Не страница HH.ru, скрипт не активирован');
@@ -18,9 +18,10 @@
             this.settings = { 
                 autoNextPage: true, 
                 skipResponded: true, 
-                delay: 0.5, // Уменьшено с 1 до 0.5 секунд
+                delay: 0.5,
                 filterOrganizations: true,
-                autoRememberOrganizations: true
+                autoRememberOrganizations: true,
+                skipCoverLetter: false  // НОВАЯ НАСТРОЙКА: пропускать сопроводительное письмо
             };
             this.filteredOrganizations = [];
             this.autoFilteredOrganizations = [];
@@ -160,8 +161,14 @@
                 </div>
                 
                 <div style="margin-bottom: 10px;">
-                    <div style="font-weight: bold; font-size: 13px; margin-bottom: 5px; color: ${textColor};">📝 Сопроводительное письмо:</div>
-                    <textarea id="hh-letter" style="width: 100%; height: 100px; padding: 8px; border: 1px solid ${inputBorder}; border-radius: 4px; font-size: 13px; resize: vertical; background: ${inputBg}; color: ${textColor};">${this.coverLetter}</textarea>
+                    <div style="font-weight: bold; font-size: 13px; margin-bottom: 5px; color: ${textColor}; display: flex; justify-content: space-between; align-items: center;">
+                        <span>📝 Сопроводительное письмо:</span>
+                        <label style="display: flex; align-items: center; gap: 5px; font-weight: normal; font-size: 12px; cursor: pointer;">
+                            <input type="checkbox" id="hh-skip-cover-letter" ${this.settings.skipCoverLetter ? 'checked' : ''} style="cursor: pointer;">
+                            <span style="color: ${this.settings.skipCoverLetter ? '#4CAF50' : secondaryText};">🚫 Не отправлять</span>
+                        </label>
+                    </div>
+                    <textarea id="hh-letter" style="width: 100%; height: 100px; padding: 8px; border: 1px solid ${inputBorder}; border-radius: 4px; font-size: 13px; resize: vertical; background: ${inputBg}; color: ${textColor}; ${this.settings.skipCoverLetter ? 'opacity: 0.5; pointer-events: none;' : ''}">${this.coverLetter}</textarea>
                     <div style="font-size: 11px; color: ${secondaryText}; margin-top: 3px; display: flex; justify-content: space-between;">
                         <span>* Укажите своё настоящее имя</span>
                         <span id="hh-char-count">${this.coverLetter.length}/2000</span>
@@ -322,6 +329,30 @@
             document.getElementById('hh-clear').addEventListener('click', () => this.clearHistory());
             document.getElementById('hh-clear-auto-filter').addEventListener('click', () => this.clearAutoFilter());
             
+            // НОВЫЙ: обработчик для чекбокса отключения сопроводительного письма
+            document.getElementById('hh-skip-cover-letter').addEventListener('change', (e) => {
+                this.settings.skipCoverLetter = e.target.checked;
+                this.saveSettings();
+                
+                // Визуальное обновление textarea (блокировка/разблокировка)
+                const textarea = document.getElementById('hh-letter');
+                const skipLabel = e.target.closest('label').querySelector('span');
+                
+                if (textarea) {
+                    if (this.settings.skipCoverLetter) {
+                        textarea.style.opacity = '0.5';
+                        textarea.style.pointerEvents = 'none';
+                        if (skipLabel) skipLabel.style.color = '#4CAF50';
+                        this.updateStatus('📝 Сопроводительное письмо ОТКЛЮЧЕНО');
+                    } else {
+                        textarea.style.opacity = '1';
+                        textarea.style.pointerEvents = 'auto';
+                        if (skipLabel) skipLabel.style.color = '';
+                        this.updateStatus('📝 Сопроводительное письмо ВКЛЮЧЕНО');
+                    }
+                }
+            });
+            
             document.getElementById('hh-auto-remember').addEventListener('change', (e) => {
                 this.settings.autoRememberOrganizations = e.target.checked;
                 this.saveSettings();
@@ -451,7 +482,6 @@
             // Обновляем все текстовые элементы
             const labels = this.panel.querySelectorAll('label, div, span:not(#hh-char-count)');
             labels.forEach(el => {
-                // Пропускаем кнопки и их элементы
                 if (el.closest('button') || el.id?.startsWith('hh-')) {
                     return;
                 }
@@ -617,6 +647,13 @@
             await this.wait(800);
             
             const addLetterButton = document.querySelector('[data-qa="add-cover-letter"]');
+            
+            // ЕСЛИ ОТКЛЮЧЕНО СОПРОВОДИТЕЛЬНОЕ ПИСЬМО - отправляем без него
+            if (this.settings.skipCoverLetter) {
+                console.log('Сопроводительное письмо ОТКЛЮЧЕНО - отправляем без него');
+                this.updateStatus('📤 Отправка без письма...');
+                return await this.processDirectOrSimple();
+            }
             
             if (addLetterButton) {
                 console.log('Найдена кнопка "Добавить сопроводительное" - у пользователя 2+ резюме');
@@ -1012,5 +1049,4 @@
     
     initialize();
     
-
 })();
