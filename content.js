@@ -1,4 +1,4 @@
-// ===== HH АВТО-ОТКЛИК v1.2 (ПОЛНАЯ СТАБИЛЬНАЯ ВЕРСИЯ) =====
+// ===== HH АВТО-ОТКЛИК v1.2 (ФИНАЛЬНАЯ СТАБИЛЬНАЯ ВЕРСИЯ) =====
 (function() {
     'use strict';
     
@@ -201,9 +201,9 @@
                 
                 <div style="margin-bottom: 10px;">
                     <div style="font-weight: bold; font-size: 13px; margin-bottom: 5px; color: ${textColor};">🚫 Фильтр организаций (ручной):</div>
-                    <textarea id="hh-filter-text" placeholder="Введите названия организаций через запятую\nПример: Яндекс, Google, YouTube" style="width: 100%; height: 80px; padding: 8px; border: 1px solid ${inputBorder}; border-radius: 4px; font-size: 13px; resize: vertical; background: ${inputBg}; color: ${textColor};">${this.filteredOrganizations.length > 0 ? this.filteredOrganizations.join(', ') : ''}</textarea>
+                    <textarea id="hh-filter-text" placeholder="Введите названия организаций через запятую&#10;Пример: Яндекс, Google, Специальные технологии" style="width: 100%; height: 80px; padding: 8px; border: 1px solid ${inputBorder}; border-radius: 4px; font-size: 13px; resize: vertical; background: ${inputBg}; color: ${textColor};">${this.filteredOrganizations.length > 0 ? this.filteredOrganizations.join(', ') : ''}</textarea>
                     <div style="font-size: 11px; color: ${secondaryText}; margin-top: 3px;">
-                        * Не откликаться на эти организации
+                        * Не откликаться на эти организации (полное или частичное совпадение)
                     </div>
                 </div>
                 
@@ -390,6 +390,7 @@
                     .map(org => org.trim())
                     .filter(org => org.length > 0);
                 this.saveSettings();
+                console.log('📋 Обновлён ручной фильтр:', this.filteredOrganizations);
             });
             
             setInterval(() => this.updateCount(), 5000);
@@ -473,7 +474,7 @@
             this.toggleButton.style.background = btnBg;
         }
         
-        // ===== АВТО-ФИЛЬТР ОРГАНИЗАЦИЙ =====
+        // ===== ПОЛУЧЕНИЕ НАЗВАНИЯ ОРГАНИЗАЦИИ (С ПОДДЕРЖКОЙ &nbsp;) =====
         
         getOrganizationName(button) {
             const vacancyItem = button.closest('.vacancy-serp-item') || 
@@ -484,39 +485,42 @@
                 return null;
             }
             
-            let orgElement = vacancyItem.querySelector('[data-qa="vacancy-serp__vacancy-employer-text"]');
-            
+            // 1. Прямой поиск по data-qa (самый надёжный)
+            const orgElement = vacancyItem.querySelector('[data-qa="vacancy-serp__vacancy-employer-text"]');
             if (orgElement) {
-                const text = orgElement.textContent || orgElement.innerText || '';
-                const trimmedText = text.trim();
-                if (trimmedText) {
-                    return trimmedText;
+                let text = orgElement.textContent || orgElement.innerText || '';
+                text = text.replace(/\u00A0/g, ' ').replace(/\s+/g, ' ').trim();
+                if (text) {
+                    return text;
                 }
             }
             
-            const magritteTextElements = vacancyItem.querySelectorAll('.magritte-text');
-            for (const element of magritteTextElements) {
-                const text = element.textContent || element.innerText || '';
-                const trimmedText = text.trim();
-                if (trimmedText && !trimmedText.includes('$') && !trimmedText.includes('₽') && 
-                    trimmedText.length > 1 && trimmedText.length < 100 && 
-                    !trimmedText.includes('отклик') && !trimmedText.includes('просмотр')) {
-                    return trimmedText;
+            // 2. Поиск через ссылку работодателя
+            const employerLink = vacancyItem.querySelector('[data-qa="vacancy-serp__vacancy-employer"]');
+            if (employerLink) {
+                let text = employerLink.textContent || employerLink.innerText || '';
+                text = text.replace(/\u00A0/g, ' ').replace(/\s+/g, ' ').trim();
+                if (text) {
+                    return text;
                 }
             }
             
-            const links = vacancyItem.querySelectorAll('a');
-            for (const link of links) {
-                const text = link.textContent || link.innerText || '';
-                const trimmedText = text.trim();
-                if (trimmedText && trimmedText.length > 1 && trimmedText.length < 80 && 
-                    !trimmedText.includes('отклик') && !trimmedText.includes('просмотр')) {
-                    return trimmedText;
+            // 3. Поиск через magritte-text элементы
+            const magritteElements = vacancyItem.querySelectorAll('.magritte-text');
+            for (const element of magritteElements) {
+                let text = element.textContent || element.innerText || '';
+                text = text.replace(/\u00A0/g, ' ').replace(/\s+/g, ' ').trim();
+                if (text && !text.includes('₽') && 
+                    !text.includes('отклик') && !text.includes('просмотр') &&
+                    text.length > 1 && text.length < 100) {
+                    return text;
                 }
             }
             
             return null;
         }
+        
+        // ===== ПРОВЕРКА ФИЛЬТРАЦИИ (НОРМАЛИЗАЦИЯ ТЕКСТА) =====
         
         isFilteredOrganization(button) {
             if (!this.settings.filterOrganizations) {
@@ -528,25 +532,33 @@
                 return false;
             }
             
-            const orgNameLower = organizationName.toLowerCase().trim();
+            const orgNameNormalized = organizationName.replace(/\s+/g, ' ').toLowerCase().trim();
             
+            // Проверка по ручному фильтру
             for (const filter of this.filteredOrganizations) {
                 if (!filter || !filter.trim()) continue;
                 
-                const filterLower = filter.toLowerCase().trim();
+                const filterNormalized = filter.toLowerCase().trim();
                 
-                if (orgNameLower.includes(filterLower) || filterLower.includes(orgNameLower)) {
+                if (orgNameNormalized === filterNormalized || 
+                    orgNameNormalized.includes(filterNormalized) || 
+                    filterNormalized.includes(orgNameNormalized)) {
+                    console.log(`🚫 Фильтр: "${organizationName}" заблокирована`);
                     return true;
                 }
             }
             
+            // Проверка по автофильтру
             if (this.settings.autoRememberOrganizations) {
                 for (const autoFilter of this.autoFilteredOrganizations) {
                     if (!autoFilter || !autoFilter.trim()) continue;
                     
-                    const autoFilterLower = autoFilter.toLowerCase().trim();
+                    const autoFilterNormalized = autoFilter.toLowerCase().trim();
                     
-                    if (orgNameLower.includes(autoFilterLower) || autoFilterLower.includes(orgNameLower)) {
+                    if (orgNameNormalized === autoFilterNormalized || 
+                        orgNameNormalized.includes(autoFilterNormalized) || 
+                        autoFilterNormalized.includes(orgNameNormalized)) {
+                        console.log(`🚫 Автофильтр: "${organizationName}" заблокирована`);
                         return true;
                     }
                 }
@@ -572,6 +584,7 @@
             
             this.autoFilteredOrganizations.push(orgNameTrimmed);
             this.saveSettings();
+            console.log(`🤖 Добавлено в автофильтр: "${orgNameTrimmed}"`);
             
             return true;
         }
@@ -600,7 +613,7 @@
                 return;
             }
             
-            if (confirm(`Очистить автофильтр?\n\nУдалить ${this.autoFilteredOrganizations.length} организаций?\n\n✅ Успешные отклики: ${this.autoFilteredOrganizations.length}\n🚫 Больше не будут пропускаться автоматически`)) {
+            if (confirm(`Очистить автофильтр?\n\nУдалить ${this.autoFilteredOrganizations.length} организаций?`)) {
                 const count = this.autoFilteredOrganizations.length;
                 this.autoFilteredOrganizations = [];
                 this.saveSettings();
@@ -638,7 +651,7 @@
             }
         }
         
-        // ===== УНИВЕРСАЛЬНАЯ ОБРАБОТКА ОТКЛИКОВ (СТАБИЛЬНАЯ) =====
+        // ===== УНИВЕРСАЛЬНАЯ ОБРАБОТКА ОТКЛИКОВ =====
         
         async universalProcess() {
             console.log('🔄 Универсальная обработка отклика...');
@@ -1070,6 +1083,7 @@
             });
             
             this.updateStatus(result);
+            console.log(result);
         }
         
         analyzePage() {
